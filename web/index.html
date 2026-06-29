@@ -165,12 +165,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
   // ---- Phase system (same as 2D) ----
   const PHASES = [
-    { name: 'sunrise', ambient: 0xffaa66, ambientIntensity: 0.5, sunColor: 0xffcc88, sunIntensity: 1.2, fog: 0x1a1018, fogDensity: 0.015, sky: 0x1a1208, particle: 'pollen' },
-    { name: 'noon',    ambient: 0xffffff, ambientIntensity: 0.7, sunColor: 0xffffee, sunIntensity: 1.5, fog: 0x0a0f0a, fogDensity: 0.008, sky: 0x0a1008, particle: 'none' },
-    { name: 'sunset',  ambient: 0xff8844, ambientIntensity: 0.5, sunColor: 0xff7733, sunIntensity: 1.0, fog: 0x180a08, fogDensity: 0.020, sky: 0x1a0a05, particle: 'firefly' },
-    { name: 'night',   ambient: 0x3a4a6a, ambientIntensity: 0.3, sunColor: 0x6688cc, sunIntensity: 0.3, fog: 0x040810, fogDensity: 0.025, sky: 0x020408, particle: 'firefly' },
-    { name: 'rain',    ambient: 0x4a5a7a, ambientIntensity: 0.4, sunColor: 0x8899bb, sunIntensity: 0.5, fog: 0x080d12, fogDensity: 0.030, sky: 0x080a10, particle: 'rain' },
-    { name: 'snow',    ambient: 0xaac0dd, ambientIntensity: 0.5, sunColor: 0xddeeff, sunIntensity: 0.6, fog: 0x0a0f18, fogDensity: 0.022, sky: 0x0a0e14, particle: 'snow' },
+    { name: 'sunrise', ambient: 0xffaa66, ambientIntensity: 0.6, sunColor: 0xffcc88, sunIntensity: 1.3, fog: 0x1a1810, fogDensity: 0.004, sky: 0x1a1508, particle: 'pollen' },
+    { name: 'noon',    ambient: 0xffffff, ambientIntensity: 0.8, sunColor: 0xffffee, sunIntensity: 1.5, fog: 0x0a0f0a, fogDensity: 0.002, sky: 0x0a1008, particle: 'none' },
+    { name: 'sunset',  ambient: 0xff9955, ambientIntensity: 0.6, sunColor: 0xff7733, sunIntensity: 1.1, fog: 0x181208, fogDensity: 0.005, sky: 0x180a05, particle: 'firefly' },
+    { name: 'night',   ambient: 0x5566aa, ambientIntensity: 0.45, sunColor: 0x8899cc, sunIntensity: 0.5, fog: 0x080a18, fogDensity: 0.006, sky: 0x050810, particle: 'firefly' },
+    { name: 'rain',    ambient: 0x6677aa, ambientIntensity: 0.55, sunColor: 0x99aacc, sunIntensity: 0.7, fog: 0x0a1018, fogDensity: 0.006, sky: 0x0a0e14, particle: 'rain' },
+    { name: 'snow',    ambient: 0xbbccee, ambientIntensity: 0.65, sunColor: 0xddeeff, sunIntensity: 0.8, fog: 0x0a1018, fogDensity: 0.005, sky: 0x0a0e14, particle: 'snow' },
   ];
   const PHASE_DURATION = 15000;
   let phaseIdx = 0;
@@ -599,13 +599,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
   function updateLighting(phase) {
     const fade = phase.fade;
-    // Lerp between current and target
     ambientLight.color.lerp(new THREE.Color(phase.ambient), 0.05);
-    ambientLight.intensity = phase.ambientIntensity * fade + 0.2;
+    ambientLight.intensity = Math.max(0.4, phase.ambientIntensity * fade + 0.25); // floor: always visible
     sunLight.color.lerp(new THREE.Color(phase.sunColor), 0.05);
-    sunLight.intensity = phase.sunIntensity * fade + 0.1;
+    sunLight.intensity = Math.max(0.3, phase.sunIntensity * fade + 0.15); // floor: always lit
     scene.fog.color.lerp(new THREE.Color(phase.fog), 0.05);
-    scene.fog.density = phase.fogDensity * fade + 0.005;
+    scene.fog.density = Math.min(0.012, phase.fogDensity * fade + 0.001); // cap fog so board stays visible
     scene.background.lerp(new THREE.Color(phase.sky), 0.05);
 
     // Move sun across sky
@@ -670,7 +669,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     updateLighting(phase);
     updateWeather(phase);
 
-    // Animate creatures — idle bobbing + position lerp
+    // Animate creatures — idle bobbing + position lerp + idle wander
     const time = performance.now() / 1000;
     const progress = Math.min(1, (performance.now() - animStart) / animDuration);
     for (const c of creatures) {
@@ -687,25 +686,33 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         px = c.pos.x; py = c.pos.y;
       }
 
-      entry.group.position.x = px * TILE;
-      entry.group.position.z = py * TILE;
+      // Idle wander offset — small circular drift so creatures look alive between ticks
+      const idleR = 0.12;
+      const idleSpeed = 0.8;
+      const idleX = Math.sin(time * idleSpeed + c.pos.x * 1.3 + c.pos.y * 0.7) * idleR;
+      const idleZ = Math.cos(time * idleSpeed * 0.7 + c.pos.y * 1.1 + c.pos.x * 0.5) * idleR;
 
-      // Bobbing
-      entry.body.position.y = 0.3 + Math.sin(time * 1.5 + c.pos.x * 0.5) * 0.04;
-      entry.body.scale.y = 1 + Math.sin(time * 1.5 + c.pos.x * 0.5) * 0.06;
+      entry.group.position.x = px * TILE + idleX;
+      entry.group.position.z = py * TILE + idleZ;
+
+      // Bobbing — much more pronounced
+      const bobSpeed = 1.5 + (c.hunger * 2); // hungry creatures bob faster
+      const bobAmp = 0.08 + Math.sin(time * 0.7 + c.pos.x) * 0.02;
+      entry.body.position.y = 0.3 + Math.sin(time * bobSpeed + c.pos.x * 0.5) * bobAmp;
+      entry.body.scale.y = 1 + Math.sin(time * bobSpeed + c.pos.x * 0.5) * 0.1;
+      entry.body.scale.x = 1 - Math.sin(time * bobSpeed + c.pos.x * 0.5) * 0.05;
+      entry.body.scale.z = 1 - Math.sin(time * bobSpeed + c.pos.x * 0.5) * 0.05;
+
+      // Eyes look around
+      const eyeLookX = Math.sin(time * 0.5 + c.pos.y) * 0.02;
+      entry.eyes[0].position.x = -0.12 + eyeLookX;
+      entry.eyes[1].position.x = 0.12 + eyeLookX;
 
       // Update need bars
       updateNeedBars(entry.bars, c);
 
-      // Face direction of movement (slight rotation)
-      if (prev && (c.pos.x !== prev.pos.x || c.pos.y !== prev.pos.y)) {
-        const dx = c.pos.x - prev.pos.x;
-        const dz = c.pos.y - prev.pos.y;
-        if (dx !== 0 || dz !== 0) {
-          const targetAngle = Math.atan2(dx, dz);
-          entry.group.rotation.y = targetAngle;
-        }
-      }
+      // Face direction of idle wander
+      entry.group.rotation.y = Math.atan2(idleX, idleZ) + Math.PI;
     }
 
     updateThoughts();
