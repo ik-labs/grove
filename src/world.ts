@@ -510,31 +510,55 @@ function resolveTarget(target: string, c: Creature, world: WorldState): Vec | nu
 }
 
 function stepToward(from: Vec, to: Vec, world: WorldState): Vec {
-  const dx = Math.sign(to.x - from.x);
-  const dy = Math.sign(to.y - from.y);
-  const nx = Math.max(0, Math.min(world.size.w - 1, from.x + dx));
-  const ny = Math.max(0, Math.min(world.size.h - 1, from.y + dy));
-  if (world.terrain[ny][nx] !== "water" && world.terrain[ny][nx] !== "rock") return { x: nx, y: ny };
-  // try just x or just y
-  if (dx && world.terrain[from.y][nx] !== "water" && world.terrain[from.y][nx] !== "rock") return { x: nx, y: from.y };
-  if (dy && world.terrain[ny][from.x] !== "water" && world.terrain[ny][from.x] !== "rock") return { x: from.x, y: ny };
-  return from;
+  // Move up to 3 tiles toward target per tick for visible movement
+  let pos = from;
+  for (let i = 0; i < 3; i++) {
+    const dx = Math.sign(to.x - pos.x);
+    const dy = Math.sign(to.y - pos.y);
+    if (dx === 0 && dy === 0) break;
+    const nx = Math.max(0, Math.min(world.size.w - 1, pos.x + dx));
+    const ny = Math.max(0, Math.min(world.size.h - 1, pos.y + dy));
+    if (world.terrain[ny][nx] !== "water" && world.terrain[ny][nx] !== "rock") {
+      pos = { x: nx, y: ny };
+    } else if (dx && world.terrain[pos.y][nx] !== "water" && world.terrain[pos.y][nx] !== "rock") {
+      pos = { x: nx, y: pos.y };
+    } else if (dy && world.terrain[ny][pos.x] !== "water" && world.terrain[ny][pos.x] !== "rock") {
+      pos = { x: pos.x, y: ny };
+    } else {
+      break;
+    }
+  }
+  return pos;
 }
 
 function stepAway(from: Vec, away: Vec, world: WorldState): Vec {
-  const dx = -Math.sign(away.x - from.x);
-  const dy = -Math.sign(away.y - from.y);
-  const nx = Math.max(0, Math.min(world.size.w - 1, from.x + dx));
-  const ny = Math.max(0, Math.min(world.size.h - 1, from.y + dy));
-  if (world.terrain[ny][nx] !== "water" && world.terrain[ny][nx] !== "rock") return { x: nx, y: ny };
-  return from;
+  // Move up to 2 tiles away per tick
+  let pos = from;
+  for (let i = 0; i < 2; i++) {
+    const dx = -Math.sign(away.x - pos.x);
+    const dy = -Math.sign(away.y - pos.y);
+    if (dx === 0 && dy === 0) break;
+    const nx = Math.max(0, Math.min(world.size.w - 1, pos.x + dx));
+    const ny = Math.max(0, Math.min(world.size.h - 1, pos.y + dy));
+    if (world.terrain[ny][nx] !== "water" && world.terrain[ny][nx] !== "rock") {
+      pos = { x: nx, y: ny };
+    } else {
+      break;
+    }
+  }
+  return pos;
 }
 
 function wander(pos: Vec, world: WorldState): Vec {
-  const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1], [0, 0]];
+  // Move up to 2 tiles in a random direction for visible wandering
+  const dirs = [[0, 2], [0, -2], [2, 0], [-2, 0], [1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [0, 1], [-1, 0], [0, -1], [0, 0]];
   const [dx, dy] = dirs[Math.floor(Math.random() * dirs.length)];
   const nx = Math.max(0, Math.min(world.size.w - 1, pos.x + dx));
   const ny = Math.max(0, Math.min(world.size.h - 1, pos.y + dy));
   if (world.terrain[ny][nx] !== "water" && world.terrain[ny][nx] !== "rock") return { x: nx, y: ny };
+  // try half step
+  const hx = Math.max(0, Math.min(world.size.w - 1, pos.x + Math.sign(dx)));
+  const hy = Math.max(0, Math.min(world.size.h - 1, pos.y + Math.sign(dy)));
+  if (world.terrain[hy][hx] !== "water" && world.terrain[hy][hx] !== "rock") return { x: hx, y: hy };
   return pos;
 }
