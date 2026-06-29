@@ -1,6 +1,6 @@
 # Grove
 
-> A living pixel-art world where 25 independent Gemma 4 agents perceive, think, and act — powered by Cerebras inference at ~5,600 tok/s.
+> A living 3D world where 25 independent Gemma 4 agents perceive, think, and act — powered by Cerebras inference at ~5,600 tok/s.
 
 Built for the **Cerebras x Google DeepMind Gemma 4 Hackathon** — *Best Multi-Agent + Multimodal Use Case*.
 
@@ -8,7 +8,7 @@ Built for the **Cerebras x Google DeepMind Gemma 4 Hackathon** — *Best Multi-A
 
 ## What is this?
 
-Grove is a real-time society simulation. 25 creatures, each with a unique personality, live in a shared world. Every few seconds, all 25 agents simultaneously:
+Grove is a real-time 3D society simulation. 25 creatures, each with a unique personality, live in a shared world rendered with Three.js. Every few seconds, all 25 agents simultaneously:
 
 1. **Perceive** their surroundings — a rendered PNG image of their 7×7 local view + a structured text minimap (multimodal input)
 2. **Decide** what to do — move toward food, eat, rest, approach a friend, avoid a rival, or wander (Gemma 4 31B generates a JSON decision with a natural-language thought)
@@ -37,7 +37,8 @@ We ran a controlled A/B test (`spike/ab-multimodal.ts`) to verify the image is l
 ```
 ┌─────────────────────────────────────────────────┐
 │                   Browser (SSE)                  │
-│  Canvas renderer + pixel art + weather + UI      │
+│  Three.js 3D renderer: terrain, creatures,       │
+│  weather, day/night, thought bubbles, camera     │
 └──────────────────────┬──────────────────────────┘
                        │ SSE stream (world state)
 ┌──────────────────────┴──────────────────────────┐
@@ -89,8 +90,8 @@ Both are sent to Gemma 4 in a single multimodal call. The model responds with JS
 ### Setup
 
 ```bash
-git clone https://github.com/ik-labs/ledgerline.git
-cd ledgerline
+git clone https://github.com/ik-labs/grove.git
+cd grove
 cp .env.example .env
 # Edit .env and add your Cerebras API key
 # CEREBRAS_API_KEY=csk-...
@@ -131,7 +132,7 @@ bun run derisk:soak      # 60s soak test at 25-way concurrency
 │   ├── sim.ts           # Headless tick loop + falsifiable gate
 │   └── server.ts        # Bun HTTP server: SSE streaming, static files, tick loop
 ├── web/
-│   └── index.html       # Single-file frontend: canvas renderer, pixel art, weather, UI
+│   └── index.html       # Single-file frontend: Three.js 3D renderer, terrain, creatures, weather, day/night, thought bubbles, camera controls
 ├── spike/
 │   ├── derisk.ts        # De-risk spike: model access, vision, JSON, soak test
 │   ├── ab-multimodal.ts # A/B test: does the image change decisions?
@@ -176,8 +177,8 @@ Each has a distinct personality that shapes their decisions:
 
 - **Runtime:** [Bun](https://bun.sh)
 - **LLM:** Gemma 4 31B via Cerebras API
-- **Frontend:** Single-file HTML + Canvas (no frameworks, no dependencies)
-- **Rendering:** Code-drawn pixel art (no external sprite assets)
+- **Frontend:** Single-file HTML + Three.js 3D renderer (no build step, CDN-loaded)
+- **Rendering:** Three.js — 3D terrain with height variations, dynamic lighting with shadows, day/night cycle, weather particles (rain/snow/fireflies), interactive orbit camera, creature animations (bobbing, squish, eye-tracking)
 - **Streaming:** Server-Sent Events (SSE)
 
 ## Rate limit notes
