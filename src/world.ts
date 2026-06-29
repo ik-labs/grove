@@ -110,17 +110,16 @@ export function initWorld(): WorldState {
     pos,
     amount: 8,
     maxAmount: 8,
-    regenRate: 0.15,
+    regenRate: 0.3, // faster regen — sustains 25 creatures
   }));
 
   // SEED THE DRAMA: depleted bush between Pip (hoarder) and Lumen (generous)
-  // Place it at center-ish, low amount
   food.push({
     id: "f_contested",
     pos: { x: 12, y: 8 },
     amount: 2,        // nearly empty — scarcity
     maxAmount: 8,
-    regenRate: 0.1,   // slow regrow
+    regenRate: 0.2,   // slow regrow — stays contested longer
   });
 
   // Creatures — 25, scattered, with Pip and Lumen near the contested bush
@@ -161,16 +160,16 @@ export function initWorld(): WorldState {
 export function driftNeeds(world: WorldState) {
   for (const c of world.creatures) {
     if (!c.alive) continue;
-    c.hunger = Math.min(1, c.hunger + 0.04);
-    c.energy = Math.max(0, c.energy - 0.02);
+    c.hunger = Math.min(1, c.hunger + 0.025); // slower hunger — demo stays alive longer
+    c.energy = Math.max(0, c.energy - 0.015);
     // social rises when isolated
     const neighbors = world.creatures.filter(o => o.alive && o.id !== c.id && dist(o.pos, c.pos) <= 3);
     if (neighbors.length === 0) c.social = Math.min(1, c.social + 0.05);
     else c.social = Math.max(0, c.social - 0.02 * neighbors.length);
-    // starvation check
+    // starvation check — more forgiving for demo
     if (c.hunger >= 1) c.starvationTicks++;
     else c.starvationTicks = 0;
-    if (c.starvationTicks >= 8) {
+    if (c.starvationTicks >= 20) { // was 8 — gives ~5 min at rate-limited speed
       c.alive = false;
       c.lastThought = "...";
     }
@@ -180,7 +179,7 @@ export function driftNeeds(world: WorldState) {
 
 export function regrowFood(world: WorldState) {
   for (const f of world.food) {
-    if (f.amount < f.maxAmount) f.amount = Math.min(f.maxAmount, f.amount + f.regenRate);
+    if (f.amount < f.maxAmount) f.amount = Math.min(f.maxAmount, f.amount + f.regenRate * 1.5);
   }
 }
 
