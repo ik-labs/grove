@@ -60,22 +60,26 @@ function broadcast(data: object) {
 }
 
 // Start the world on demand (triggered by the "enter the world" button).
-// Guarded so concurrent viewers can't double-start. If a previous run already
-// advanced, spin up a fresh world and re-broadcast init so terrain resets.
+// EVERY click restarts from scratch: bump the generation, spin up a fresh
+// world, and re-broadcast init. A `generation` token lets any in-flight loop
+// detect it has been superseded and bail before mutating the new world — we
+// can't instantly kill a loop that's mid-await on 25 LLM calls.
+let generation = 0;
+
 function startTickLoop(): boolean {
-  if (tickRunning) return false;
-  if (world.tick > 0) {
-    world = initWorld();
-    broadcast(serializeInit());
-  }
+  generation++;
+  const myGen = generation;
+  world = initWorld();
+  broadcast(serializeInit());
   tickRunning = true;
-  tickLoop().finally(() => { tickRunning = false; });
+  tickLoop(myGen).finally(() => { if (myGen === generation) tickRunning = false; });
   return true;
 }
 
-async function tickLoop() {
+async function tickLoop(gen: number) {
   metrics.startTime = performance.now();
   for (let i = 0; i < MAX_TICKS; i++) {
+    if (gen !== generation) return; // superseded by a newer /start
     world.tick++;
     const t0 = performance.now();
     driftNeeds(world);
@@ -84,6 +88,7 @@ async function tickLoop() {
     const alive = world.creatures.filter(c => c.alive);
     const perceptions = alive.map(c => ({ c, p: perceive(c, world) }));
     const decisions = await Promise.all(perceptions.map(({ c, p }) => decide(c, p)));
+    if (gen !== generation) return; // a newer run started while we awaited — discard
 
     const foodTargets = new Map<string, string[]>();
     for (const d of decisions) {
@@ -104,7 +109,7 @@ async function tickLoop() {
     if (aliveCount < 5) { console.log("Too few alive, stopping."); break; }
     if (TICK_DELAY_MS > 0) await new Promise(r => setTimeout(r, TICK_DELAY_MS));
   }
-  broadcast({ type: "end", tick: world.tick });
+  if (gen === generation) broadcast({ type: "end", tick: world.tick });
 }
 
 // Path sanitization (Corridor): ensure file requests stay within web/

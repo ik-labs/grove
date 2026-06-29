@@ -817,11 +817,31 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     }
   }
 
+  // Tear down the previous run so a restart (new init) starts visually clean.
+  function resetScene() {
+    if (playbackTimer) { clearTimeout(playbackTimer); playbackTimer = null; }
+    tickBuffer.length = 0;
+    isLive = true;
+    liveBadge.textContent = 'LIVE';
+    liveBadge.classList.remove('buffered');
+    for (const [, entry] of creatureMeshes) creatureGroup.remove(entry.group);
+    creatureMeshes.clear();
+    for (const [, mesh] of foodMeshes) foodGroup.remove(mesh);
+    foodMeshes.clear();
+    for (const [, elEntry] of thoughtEls) elEntry.el.remove();
+    thoughtEls.clear();
+    creatures = [];
+    food = [];
+    prevCreatures.clear();
+  }
+
   function handleEvent(data) {
     if (data.type === 'init') {
+      resetScene();
       world = data;
       buildTerrain();
-      statusEl.textContent = 'waiting for first tick...';
+      statusEl.style.display = 'block';
+      statusEl.textContent = 'waking the world...';
     } else if (data.type === 'tick') {
       statusEl.style.display = 'none';
       tickBuffer.push(data);
