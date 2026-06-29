@@ -1,0 +1,13 @@
+{
+  "name": "grove",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "derisk": "bun run spike/derisk.ts",
+    "derisk:soak": "GROVE_SOAK_SECONDS=60 GROVE_SOAK_CONCURRENCY=25 bun run spike/derisk.ts",
+    "sim": "bun run src/sim.ts",
+    "sim:short": "GROVE_MAX_TICKS=10 bun run src/sim.ts",
+    "server": "bun run src/server.ts"
+  }
+}

@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grove — a living world of Gemma 4 agents</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0f0a; color: #c8d0c8; font-family: 'SF Mono', 'Monaco', monospace; overflow: hidden; }
+  #app { position: relative; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+  #world-canvas { border-radius: 8px; box-shadow: 0 0 40px rgba(80,160,80,0.15); image-rendering: pixelated; }
+  #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  #title { position: absolute; top: 16px; left: 20px; font-size: 14px; color: #8aaa8a; letter-spacing: 1px; pointer-events: none; }
+  #title .name { font-size: 20px; color: #c8e0c8; font-weight: 700; }
+
+  #throughput { position: absolute; top: 16px; right: 20px; padding: 10px 16px; background: rgba(20,30,20,0.85); border: 1px solid #3a5a3a; border-radius: 8px; font-size: 13px; pointer-events: none; }
+  #throughput .label { color: #6a8a6a; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  #throughput .value { color: #8ae08a; font-size: 18px; font-weight: 700; }
+  #throughput .sub { color: #5a7a5a; font-size: 11px; }
+
+  #tick-info { position: absolute; bottom: 16px; left: 20px; font-size: 12px; color: #5a7a5a; pointer-events: none; }
+  #phase-label { position: absolute; bottom: 34px; left: 20px; font-size: 13px; color: #c0d0a0; text-transform: uppercase; letter-spacing: 2px; font-weight: 700; pointer-events: none; text-shadow: 0 0 10px rgba(100,160,80,0.4); }
+  #mode-toggle { position: absolute; bottom: 16px; right: 20px; padding: 8px 16px; background: rgba(20,30,20,0.85); border: 1px solid #3a5a3a; border-radius: 8px; color: #8aaa8a; font-size: 12px; cursor: pointer; pointer-events: auto; font-family: inherit; }
+  #mode-toggle:hover { background: rgba(30,50,30,0.9); }
+
+  .thought { position: absolute; padding: 5px 10px; background: rgba(15,20,15,0.9); border: 1px solid rgba(100,140,100,0.4); border-radius: 12px; font-size: 12px; color: #d8e8d8; white-space: nowrap; transition: opacity 1s; max-width: 200px; text-overflow: ellipsis; overflow: hidden; }
+  .thought.contest { border-color: rgba(220,100,80,0.6); color: #f0c8c0; }
+
+  #contest-banner { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); padding: 12px 24px; background: rgba(60,20,15,0.9); border: 1px solid rgba(220,100,80,0.5); border-radius: 8px; font-size: 15px; color: #f0c8c0; opacity: 0; transition: opacity 0.5s; pointer-events: none; }
+
+  #status { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 16px; color: #5a7a5a; }
+
+  #legend-toggle { position: absolute; bottom: 16px; right: 130px; padding: 8px 14px; background: rgba(20,30,20,0.85); border: 1px solid #3a5a3a; border-radius: 8px; color: #8aaa8a; font-size: 14px; cursor: pointer; pointer-events: auto; font-family: inherit; }
+  #legend-toggle:hover { background: rgba(30,50,30,0.9); }
+
+  #legend-panel { position: absolute; bottom: 56px; right: 20px; padding: 14px 18px; background: rgba(15,25,15,0.95); border: 1px solid #3a5a3a; border-radius: 10px; font-size: 12px; color: #a0b8a0; pointer-events: none; z-index: 10; }
+  #legend-panel .legend-item { margin: 6px 0; display: flex; align-items: center; gap: 8px; }
+  .legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .legend-bubble { display: inline-block; padding: 2px 8px; background: rgba(15,20,15,0.9); border: 1px solid rgba(100,140,100,0.4); border-radius: 8px; font-size: 10px; color: #d8e8d8; flex-shrink: 0; }
+  .legend-bar { display: inline-flex; gap: 1px; flex-shrink: 0; }
+  .legend-bar span { display: inline-block; width: 8px; height: 8px; }
+
+  #intro-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,10,5,0.92); display: flex; align-items: center; justify-content: center; z-index: 100; transition: opacity 0.8s; }
+  #intro-overlay.hidden { opacity: 0; pointer-events: none; }
+  #intro-card { max-width: 520px; padding: 36px 40px; background: linear-gradient(135deg, rgba(20,35,20,0.98), rgba(15,25,15,0.98)); border: 1px solid rgba(80,140,80,0.3); border-radius: 16px; box-shadow: 0 0 60px rgba(60,120,60,0.15); text-align: center; }
+  #intro-title { font-size: 42px; font-weight: 800; color: #a8d8a8; letter-spacing: 2px; margin-bottom: 4px; }
+  #intro-subtitle { font-size: 14px; color: #6a8a6a; margin-bottom: 20px; letter-spacing: 0.5px; }
+  #intro-body { text-align: left; font-size: 14px; line-height: 1.6; color: #b0c8b0; margin-bottom: 20px; }
+  #intro-body p { margin-bottom: 12px; }
+  #intro-body strong { color: #d0e8d0; }
+  #intro-legend { text-align: left; font-size: 12px; color: #8aaa8a; margin-bottom: 24px; padding: 14px; background: rgba(10,18,10,0.6); border-radius: 8px; border: 1px solid rgba(50,80,50,0.3); }
+  #intro-legend .legend-item { margin: 8px 0; display: flex; align-items: center; gap: 8px; }
+  #intro-stats { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+  #intro-stats .stat { flex: 1; text-align: center; padding: 10px 4px; background: rgba(10,18,10,0.6); border: 1px solid rgba(50,80,50,0.3); border-radius: 8px; }
+  #intro-stats .stat-value { display: block; font-size: 22px; font-weight: 800; color: #8ae08a; }
+  #intro-stats .stat-label { display: block; font-size: 9px; color: #6a8a6a; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  #intro-start { padding: 12px 32px; background: linear-gradient(135deg, #3a7a3a, #2a5a2a); border: 1px solid #4a8a4a; border-radius: 10px; color: #d0f0d0; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; letter-spacing: 0.5px; transition: transform 0.15s, box-shadow 0.15s; }
+  #intro-start:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(60,120,60,0.3); }
+
+  #live-badge { display: inline-block; margin-top: 6px; padding: 2px 8px; font-size: 10px; font-weight: 700; letter-spacing: 1px; border-radius: 4px; background: rgba(80,200,80,0.2); border: 1px solid rgba(80,200,80,0.5); color: #5ae05a; }
+  #live-badge.buffered { background: rgba(200,160,80,0.2); border-color: rgba(200,160,80,0.5); color: #e0c050; }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="world-canvas"></canvas>
+  <div id="overlay">
+    <div id="title"><div class="name">Grove</div>a living world of 25 Gemma-4 agents on Cerebras</div>
+    <div id="throughput">
+      <div class="label">Cerebras throughput</div>
+      <div class="value" id="tp-tokens">— tok/s</div>
+      <div class="sub" id="tp-calls">0 calls | 0 retries</div>
+      <div id="live-badge">LIVE</div>
+    </div>
+    <div id="tick-info">tick 0 | 0ms</div>
+    <div id="phase-label">sunrise</div>
+    <button id="mode-toggle">observe (readable)</button>
+    <button id="legend-toggle">?</button>
+    <div id="contest-banner"></div>
+    <div id="status">connecting to Cerebras...</div>
+  </div>
+
+  <div id="intro-overlay">
+    <div id="intro-card">
+      <div id="intro-title">Grove</div>
+      <div id="intro-subtitle">25 independent Gemma 4 agents &middot; multimodal perception &middot; Cerebras inference</div>
+      <div id="intro-body">
+        <p><strong>25 creatures</strong> live in this world. Each is an independent <strong>Gemma 4 31B</strong> agent running on <strong>Cerebras</strong> at ~5,600 tok/s. Every tick, all 25 agents perceive, think, and act in parallel.</p>
+        <p>Each agent receives a <strong>multimodal perception</strong>: a rendered PNG image of its 7&times;7 local view plus a structured text minimap. An A/B test confirmed the image is load-bearing — removing it changed agent decisions in 22% of trials and reasoning in 67%.</p>
+        <p>They get hungry, seek food, befriend, compete, and wander. Every thought bubble is a <strong>real LLM output</strong>, not scripted. Watch what happens when food runs low.</p>
+      </div>
+      <div id="intro-stats">
+        <div class="stat"><span class="stat-value">25</span><span class="stat-label">agents</span></div>
+        <div class="stat"><span class="stat-value">5,600</span><span class="stat-label">tok/s</span></div>
+        <div class="stat"><span class="stat-value">22%</span><span class="stat-label">vision changes decisions</span></div>
+        <div class="stat"><span class="stat-value">100%</span><span class="stat-label">JSON reliability</span></div>
+      </div>
+      <div id="intro-legend">
+        <div class="legend-item"><span class="legend-dot" style="background:#5ac05a"></span> Berry bushes — food that depletes &amp; regrows</div>
+        <div class="legend-item"><span class="legend-dot" style="background:linear-gradient(135deg,#ff8c64,#dc5050)"></span> Colored slimes — each a unique AI personality</div>
+        <div class="legend-item"><span class="legend-bubble">&ldquo;thought&rdquo;</span> Speech bubbles — live LLM reasoning, fading</div>
+        <div class="legend-item"><span class="legend-bar"><span style="background:#dc5050"></span><span style="background:#50b4dc"></span><span style="background:#dcc850"></span></span> Need bars — hunger (red), energy (blue), social (yellow)</div>
+      </div>
+      <button id="intro-start">enter the world</button>
+    </div>
+  </div>
+
+  <div id="legend-panel" style="display:none">
+    <div class="legend-item"><span class="legend-dot" style="background:#5ac05a"></span> Berry bushes — food</div>
+    <div class="legend-item"><span class="legend-dot" style="background:linear-gradient(135deg,#ff8c64,#dc5050)"></span> Slimes — AI creatures</div>
+    <div class="legend-item"><span class="legend-bubble">&ldquo;thought&rdquo;</span> Live AI reasoning</div>
+    <div class="legend-item"><span class="legend-bar"><span style="background:#dc5050"></span><span style="background:#50b4dc"></span><span style="background:#dcc850"></span></span> hunger / energy / social</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('world-canvas');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const statusEl = document.getElementById('status');
+  const tpTokens = document.getElementById('tp-tokens');
+  const tpCalls = document.getElementById('tp-calls');
+  const tickInfo = document.getElementById('tick-info');
+  const modeToggle = document.getElementById('mode-toggle');
+  const contestBanner = document.getElementById('contest-banner');
+  const introOverlay = document.getElementById('intro-overlay');
+  const introStart = document.getElementById('intro-start');
+  const legendToggle = document.getElementById('legend-toggle');
+  const legendPanel = document.getElementById('legend-panel');
+  const liveBadge = document.getElementById('live-badge');
+  const phaseLabelEl = document.getElementById('phase-label');
+
+  introStart.addEventListener('click', () => introOverlay.classList.add('hidden'));
+  legendToggle.addEventListener('click', () => {
+    legendPanel.style.display = legendPanel.style.display === 'none' ? 'block' : 'none';
+  });
+
+  const TILE = 36;
+  let world = { size: { w: 24, h: 16 }, terrain: [], timeOfDay: 0.3 };
+  let creatures = [];
+  let food = [];
+  let prevCreatures = new Map(); // id -> {pos, thought}
+  let animStart = 0;
+  let animDuration = 2500;
+  let mode = 'observe';
+  let thoughtEls = new Map(); // id -> {el, fadeTimer}
+  let contestTimer = 0;
+  const tickBuffer = []; // buffered ticks from SSE, consumed by playback loop
+  let isLive = true; // true when caught up to real-time (buffer empty)
+  let playbackTimer = null; // setTimeout id for playback loop
+
+  // Pixel art slime sprite cache: color -> offscreen canvas (32x32)
+  const slimeCache = new Map();
+  const SPRITE_SIZE = 32;
+
+  function createSlimeSprite(color) {
+    const key = color.join(',');
+    if (slimeCache.has(key)) return slimeCache.get(key);
+    const off = document.createElement('canvas');
+    off.width = SPRITE_SIZE;
+    off.height = SPRITE_SIZE;
+    const o = off.getContext('2d');
+    o.imageSmoothingEnabled = false;
+    const [r, g, b] = color;
+    const body = `rgb(${r},${g},${b})`;
+    const dark = `rgb(${Math.max(0,r-70)},${Math.max(0,g-70)},${Math.max(0,b-70)})`;
+    const light = `rgb(${Math.min(255,r+50)},${Math.min(255,g+50)},${Math.min(255,b+50)})`;
+
+    // Slime body: pixel-block dome shape (manually placed rects for pixel-art look)
+    // Each row: [x, width] at given y — body fill
+    const bodyRows = [
+      [10, 12, 4],  [8, 16, 6],  [7, 18, 8],  [6, 20, 10],
+      [5, 22, 12], [5, 22, 14], [5, 22, 16], [5, 22, 18],
+      [5, 22, 20], [4, 24, 22], [4, 24, 24],
+    ];
+    // Outline rows (slightly wider, drawn first)
+    const outlineRows = [
+      [9, 14, 3],  [7, 18, 5],  [6, 20, 7],  [5, 22, 9],
+      [4, 24, 11], [4, 24, 13], [4, 24, 15], [4, 24, 17],
+      [4, 24, 19], [3, 26, 21], [3, 26, 23], [3, 26, 25],
+    ];
+    // Draw outline
+    o.fillStyle = dark;
+    for (const [x, w, y] of outlineRows) o.fillRect(x, y, w, 2);
+    // Draw body
+    o.fillStyle = body;
+    for (const [x, w, y] of bodyRows) o.fillRect(x, y, w, 2);
+    // Highlight (glossy)
+    o.fillStyle = light;
+    o.fillRect(10, 8, 4, 2);
+    o.fillRect(9, 10, 2, 2);
+    // Eyes
+    o.fillStyle = 'white';
+    o.fillRect(11, 14, 3, 3);
+    o.fillRect(18, 14, 3, 3);
+    o.fillStyle = 'black';
+    o.fillRect(12, 15, 2, 2);
+    o.fillRect(19, 15, 2, 2);
+    // Bottom shadow line
+    o.fillStyle = dark;
+    o.fillRect(4, 25, 24, 1);
+
+    slimeCache.set(key, off);
+    return off;
+  }
+
+  // Pixel art bush sprite for food (cached once)
+  let bushCanvas = null;
+  function createBushSprite() {
+    if (bushCanvas) return bushCanvas;
+    const off = document.createElement('canvas');
+    off.width = 32; off.height = 32;
+    const o = off.getContext('2d');
+    // bush body
+    const bushDark = '#1a3a1a', bushMid = '#2a5a2a', bushLight = '#3a7a3a';
+    const berry = '#5ac05a', berryDark = '#3a8a3a';
+    o.fillStyle = bushDark;
+    const outlineRows = [[8,16,12],[7,18,14],[6,20,16],[6,20,18],[5,22,20],[5,22,22],[6,20,24],[8,16,26]];
+    for (const [x,w,y] of outlineRows) o.fillRect(x, y, w, 2);
+    o.fillStyle = bushMid;
+    const bodyRows = [[9,14,13],[8,16,15],[7,18,17],[7,18,19],[6,20,21],[6,20,23],[7,18,25]];
+    for (const [x,w,y] of bodyRows) o.fillRect(x, y, w, 2);
+    o.fillStyle = bushLight;
+    o.fillRect(10, 14, 4, 2);
+    o.fillRect(9, 16, 2, 2);
+    // berries (visible when food available — drawn dynamically)
+    bushCanvas = off;
+    return off;
+  }
+
+  modeToggle.addEventListener('click', () => {
+    mode = mode === 'observe' ? 'turbo' : 'observe';
+    modeToggle.textContent = mode === 'turbo' ? 'turbo (fast-forward)' : 'observe (readable)';
+    // animDuration is now set by playbackLoop per tick, not here
+  });
+
+  function resizeCanvas() {
+    canvas.width = world.size.w * TILE;
+    canvas.height = world.size.h * TILE;
+    const scale = Math.min(window.innerWidth / canvas.width, window.innerHeight / canvas.height) * 0.9;
+    canvas.style.width = (canvas.width * scale) + 'px';
+    canvas.style.height = (canvas.height * scale) + 'px';
+  }
+
+  const tileColors = { grass: '#2a4a2a', water: '#3a6a9a', rock: '#5a5a5a', bush: '#3a5a3a' };
+
+  // ---- Time-of-day + weather phase system (cycles every 15s) ----
+  const PHASES = [
+    { name: 'sunrise', overlay: 'rgba(255,160,80,0.25)',  bg: '#1a1018', ambient: 'pollen',  ambientColor: 'rgba(255,220,160,0.6)', ambientCount: 30 },
+    { name: 'noon',    overlay: 'rgba(255,255,200,0.08)', bg: '#0a0f0a', ambient: 'sparkle', ambientColor: 'rgba(255,255,200,0.4)', ambientCount: 15 },
+    { name: 'sunset',  overlay: 'rgba(255,100,40,0.30)',  bg: '#180a08', ambient: 'firefly', ambientColor: 'rgba(255,180,80,0.7)',  ambientCount: 30 },
+    { name: 'night',   overlay: 'rgba(15,20,50,0.50)',    bg: '#040810', ambient: 'firefly', ambientColor: 'rgba(180,255,180,0.9)', ambientCount: 45 },
+    { name: 'rain',    overlay: 'rgba(30,40,60,0.40)',    bg: '#080d12', ambient: 'rain',    ambientColor: 'rgba(150,180,220,0.8)', ambientCount: 120 },
+    { name: 'snow',    overlay: 'rgba(180,200,230,0.22)', bg: '#0a0f18', ambient: 'snow',   ambientColor: 'rgba(255,255,255,0.9)', ambientCount: 80 },
+  ];
+  const PHASE_DURATION = 15000; // 15 seconds per phase
+  let phaseIdx = 0;
+  let phaseStart = performance.now();
+  function currentPhase() {
+    const elapsed = performance.now() - phaseStart;
+    if (elapsed > PHASE_DURATION) {
+      phaseIdx = (phaseIdx + 1) % PHASES.length;
+      phaseStart = performance.now();
+      // Update UI label
+      if (phaseLabelEl) phaseLabelEl.textContent = PHASES[phaseIdx].name;
+    }
+    // Transition alpha: fade in first 2s, fade out last 2s
+    const t = (performance.now() - phaseStart) / PHASE_DURATION;
+    const fade = t < 0.13 ? t / 0.13 : t > 0.87 ? (1 - t) / 0.13 : 1;
+    return { ...PHASES[phaseIdx], fade };
+  }
+
+  // Rain/snow particle state (persistent across frames)
+  const weatherParticles = [];
+  function initWeatherParticles(type, count) {
+    weatherParticles.length = 0;
+    for (let i = 0; i < count; i++) {
+      weatherParticles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: type === 'rain' ? -2.5 : Math.sin(i) * 0.4,
+        vy: type === 'rain' ? 12 + Math.random() * 6 : 1.5 + Math.random() * 2,
+        size: type === 'rain' ? 2 : 3 + Math.random() * 3,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  // Star field for night (pre-computed, stable positions)
+  let stars = [];
+  function initStars() {
+    stars = [];
+    for (let i = 0; i < 40; i++) {
+      stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height * 0.5,
+        twinkle: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  // Baked textured world background — generated once on init, blitted each frame
+  let bgCanvas = null;
+  function bakeBackground() {
+    bgCanvas = document.createElement('canvas');
+    bgCanvas.width = world.size.w * TILE;
+    bgCanvas.height = world.size.h * TILE;
+    const bg = bgCanvas.getContext('2d');
+    bg.imageSmoothingEnabled = false;
+
+    // Deterministic pseudo-random for stable decorations
+    let seed = 12345;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+
+    const grassBase = '#2a4a2a', grassDark = '#1e3a1e', grassLight = '#3a6a3a', grassTuft = '#456a45';
+    const waterBase = '#2a5a8a', waterLight = '#3a7aaa', waterDark = '#1a4a7a', waterFoam = '#5a9aca';
+    const rockBase = '#5a5a5a', rockDark = '#3a3a3a', rockLight = '#7a7a7a', mossColor = '#3a6a3a';
+    const flowerColors = ['#e8d050', '#e8a0c0', '#d060d0', '#f0f0a0', '#e87060'];
+    const pathColor = '#6a5a3a', pathDark = '#5a4a2a';
+
+    for (let y = 0; y < world.size.h; y++) {
+      for (let x = 0; x < world.size.w; x++) {
+        const t = world.terrain[y]?.[x] ?? 'grass';
+        const tx = x * TILE, ty = y * TILE;
+
+        if (t === 'water') {
+          bg.fillStyle = waterBase;
+          bg.fillRect(tx, ty, TILE, TILE);
+          // ripples
+          bg.fillStyle = waterLight;
+          for (let i = 0; i < 3; i++) {
+            const rx = tx + Math.floor(rnd() * TILE), ry = ty + Math.floor(rnd() * TILE);
+            bg.fillRect(rx, ry, 3, 1);
+          }
+          bg.fillStyle = waterFoam;
+          for (let i = 0; i < 2; i++) {
+            const rx = tx + Math.floor(rnd() * TILE), ry = ty + Math.floor(rnd() * TILE);
+            bg.fillRect(rx, ry, 1, 1);
+          }
+          bg.fillStyle = waterDark;
+          bg.fillRect(tx, ty + TILE - 2, TILE, 2);
+        } else if (t === 'rock') {
+          bg.fillStyle = rockBase;
+          bg.fillRect(tx, ty, TILE, TILE);
+          bg.fillStyle = rockDark;
+          bg.fillRect(tx, ty, 4, TILE);
+          bg.fillRect(tx + TILE - 4, ty, 4, TILE);
+          // cracks
+          bg.fillStyle = rockDark;
+          for (let i = 0; i < 2; i++) {
+            const rx = tx + 4 + Math.floor(rnd() * (TILE - 8));
+            const ry = ty + Math.floor(rnd() * TILE);
+            bg.fillRect(rx, ry, 1, 6 + Math.floor(rnd() * 6));
+          }
+          // moss patches
+          bg.fillStyle = mossColor;
+          for (let i = 0; i < 3; i++) {
+            const rx = tx + Math.floor(rnd() * TILE), ry = ty + Math.floor(rnd() * TILE);
+            bg.fillRect(rx, ry, 2, 2);
+          }
+          bg.fillStyle = rockLight;
+          bg.fillRect(tx + 6, ty + 4, 3, 2);
+        } else {
+          // grass — textured with tufts, blades, flowers, paths
+          bg.fillStyle = grassBase;
+          bg.fillRect(tx, ty, TILE, TILE);
+          // darker patches
+          bg.fillStyle = grassDark;
+          for (let i = 0; i < 4; i++) {
+            const rx = tx + Math.floor(rnd() * TILE), ry = ty + Math.floor(rnd() * TILE);
+            bg.fillRect(rx, ry, 2, 2);
+          }
+          // grass tufts
+          bg.fillStyle = grassTuft;
+          for (let i = 0; i < 6; i++) {
+            const rx = tx + Math.floor(rnd() * TILE), ry = ty + Math.floor(rnd() * TILE);
+            bg.fillRect(rx, ry, 1, 2);
+            bg.fillRect(rx + 1, ry - 1, 1, 2);
+          }
+          // lighter blades
+          bg.fillStyle = grassLight;
+          for (let i = 0; i < 4; i++) {
+            const rx = tx + Math.floor(rnd() * TILE), ry = ty + Math.floor(rnd() * TILE);
+            bg.fillRect(rx, ry, 1, 1);
+          }
+          // occasional flowers (sparse)
+          if (rnd() < 0.15) {
+            const fx2 = tx + 4 + Math.floor(rnd() * (TILE - 8));
+            const fy2 = ty + 4 + Math.floor(rnd() * (TILE - 8));
+            const fc = flowerColors[Math.floor(rnd() * flowerColors.length)];
+            bg.fillStyle = fc;
+            bg.fillRect(fx2, fy2, 2, 2);
+            bg.fillStyle = '#e8e040';
+            bg.fillRect(fx2 + 1, fy2 + 1, 1, 1);
+          }
+          // occasional small stones
+          if (rnd() < 0.08) {
+            const sx2 = tx + Math.floor(rnd() * TILE), sy2 = ty + Math.floor(rnd() * TILE);
+            bg.fillStyle = '#6a6a6a';
+            bg.fillRect(sx2, sy2, 2, 1);
+            bg.fillStyle = '#4a4a4a';
+            bg.fillRect(sx2, sy2 + 1, 2, 1);
+          }
+        }
+      }
+    }
+
+    // Add a few decorative trees on grass edges (not where creatures spawn)
+    const treePositions = [[1,1],[22,1],[1,14],[22,14],[3,7],[20,9],[6,1],[18,14]];
+    for (const [tx2, ty2] of treePositions) {
+      if (world.terrain[ty2]?.[tx2] !== 'grass') continue;
+      const px2 = tx2 * TILE, py2 = ty2 * TILE;
+      // trunk
+      bg.fillStyle = '#4a3a1a';
+      bg.fillRect(px2 + TILE/2 - 2, py2 + TILE - 8, 4, 8);
+      // canopy (pixel clumps)
+      bg.fillStyle = '#1a3a1a';
+      bg.fillRect(px2 + TILE/2 - 10, py2 + TILE - 22, 20, 14);
+      bg.fillStyle = '#2a5a2a';
+      bg.fillRect(px2 + TILE/2 - 8, py2 + TILE - 20, 16, 10);
+      bg.fillStyle = '#3a7a3a';
+      bg.fillRect(px2 + TILE/2 - 6, py2 + TILE - 22, 4, 4);
+      bg.fillRect(px2 + TILE/2 + 2, py2 + TILE - 21, 3, 3);
+    }
+
+    // Subtle vignette
+    const grad = bg.createRadialGradient(
+      bgCanvas.width / 2, bgCanvas.height / 2, bgCanvas.width * 0.3,
+      bgCanvas.width / 2, bgCanvas.height / 2, bgCanvas.width * 0.7
+    );
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.25)');
+    bg.fillStyle = grad;
+    bg.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+  }
+
+  function drawWorld(progress) {
+    const phase = currentPhase();
+
+    ctx.fillStyle = phase.bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Blit baked textured background
+    if (bgCanvas) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(bgCanvas, 0, 0);
+    } else {
+      for (let y = 0; y < world.size.h; y++) {
+        for (let x = 0; x < world.size.w; x++) {
+          const t = world.terrain[y]?.[x] ?? 'grass';
+          ctx.fillStyle = tileColors[t] ?? tileColors.grass;
+          ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+        }
+      }
+    }
+
+    // Food — pixel art bushes with berries
+    const bushSprite = createBushSprite();
+    for (const f of food) {
+      const fx = f.pos.x * TILE;
+      const fy = f.pos.y * TILE;
+      // Always draw the bush base
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(bushSprite, fx, fy, TILE, TILE);
+      // Berries scale with amount
+      if (f.amount > 0) {
+        const ratio = f.amount / f.maxAmount;
+        const numBerries = Math.ceil(ratio * 5);
+        const berryColor = ratio > 0.5 ? '#5ac05a' : '#3a8a3a';
+        const berryPositions = [[12,16],[20,17],[10,20],[22,20],[16,22]];
+        ctx.fillStyle = berryColor;
+        for (let i = 0; i < numBerries && i < berryPositions.length; i++) {
+          const [bx, by] = berryPositions[i];
+          ctx.fillRect(fx + bx * TILE/32, fy + by * TILE/32, 3, 3);
+        }
+        // red tint when nearly depleted
+        if (ratio < 0.3) {
+          ctx.fillStyle = 'rgba(200,100,80,0.9)';
+          ctx.font = '10px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('!', fx + TILE/2, fy + 12);
+          ctx.textAlign = 'left';
+        }
+      }
+    }
+
+    // Creatures with lerp
+    for (const c of creatures) {
+      if (!c.alive) continue;
+      const prev = prevCreatures.get(c.id);
+      let px, py;
+      if (prev && progress < 1) {
+        px = prev.pos.x + (c.pos.x - prev.pos.x) * progress;
+        py = prev.pos.y + (c.pos.y - prev.pos.y) * progress;
+      } else {
+        px = c.pos.x;
+        py = c.pos.y;
+      }
+      const cx = px * TILE + TILE / 2;
+      const cy = py * TILE + TILE / 2;
+
+      // shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + TILE * 0.35, TILE * 0.28, TILE * 0.08, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // pixel art slime sprite with idle squish animation
+      const sprite = createSlimeSprite(c.color);
+      const breathe = Math.sin(performance.now() / 600 + c.pos.x * 0.5) * 0.06;
+      const spriteW = TILE * 0.85;
+      const spriteH = TILE * 0.85 * (1 + breathe);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(sprite, cx - spriteW / 2, cy + TILE * 0.15 - spriteH, spriteW, spriteH);
+
+      // name
+      ctx.fillStyle = 'rgba(200,220,200,0.75)';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(c.name, cx, cy - TILE * 0.35);
+      ctx.textAlign = 'left';
+
+      // need bars (compact, below sprite)
+      const barW = 22, barH = 3, barX = cx - barW / 2, barY = cy + TILE * 0.32;
+      const bars = [
+        { val: c.hunger, color: 'rgba(220,80,80,0.85)' },
+        { val: c.energy, color: 'rgba(80,180,220,0.85)' },
+        { val: c.social, color: 'rgba(220,200,80,0.85)' },
+      ];
+      bars.forEach((bar, i) => {
+        ctx.fillStyle = 'rgba(20,30,20,0.7)';
+        ctx.fillRect(barX - 1, barY + i * (barH + 1) - 1, barW + 2, barH + 2);
+        ctx.fillStyle = bar.color;
+        ctx.fillRect(barX, barY + i * (barH + 1), barW * bar.val, barH);
+      });
+    }
+
+    // ---- Phase color grade overlay (faded in/out) ----
+    ctx.fillStyle = phase.overlay;
+    ctx.globalAlpha = phase.fade;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = 1;
+
+    // ---- Celestial body: sun/moon arc across the sky ----
+    const phaseProgress = (performance.now() - phaseStart) / PHASE_DURATION;
+    const celestialX = phaseProgress * canvas.width;
+    const celestialY = canvas.height * 0.3 - Math.sin(phaseProgress * Math.PI) * canvas.height * 0.2;
+    if (phase.name === 'sunrise' || phase.name === 'noon' || phase.name === 'sunset') {
+      // Sun
+      const sunColor = phase.name === 'sunrise' ? 'rgba(255,200,100,' : phase.name === 'sunset' ? 'rgba(255,120,50,' : 'rgba(255,240,180,';
+      ctx.fillStyle = sunColor + `${0.8 * phase.fade})`;
+      ctx.beginPath();
+      ctx.arc(celestialX, celestialY, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = sunColor + `${0.3 * phase.fade})`;
+      ctx.beginPath();
+      ctx.arc(celestialX, celestialY, 20, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (phase.name === 'night') {
+      // Moon
+      ctx.fillStyle = `rgba(220,220,240,${0.7 * phase.fade})`;
+      ctx.beginPath();
+      ctx.arc(celestialX, celestialY, 10, 0, Math.PI * 2);
+      ctx.fill();
+      // crescent shadow
+      ctx.fillStyle = phase.bg;
+      ctx.beginPath();
+      ctx.arc(celestialX + 4, celestialY - 2, 9, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ---- Night: stars ----
+    if (phase.name === 'night') {
+      const time = performance.now() / 1000;
+      for (const s of stars) {
+        const tw = Math.sin(time * 1.5 + s.twinkle) * 0.4 + 0.6;
+        ctx.fillStyle = `rgba(200,220,255,${tw * 0.6 * phase.fade})`;
+        ctx.fillRect(s.x, s.y, 1, 1);
+      }
+    }
+
+    // ---- Weather + ambient particles ----
+    const time = performance.now() / 1000;
+    const ac = phase.ambientColor;
+
+    if (phase.ambient === 'rain') {
+      // Ensure particles initialized for rain
+      if (weatherParticles.length !== phase.ambientCount) initWeatherParticles('rain', phase.ambientCount);
+      ctx.strokeStyle = `rgba(160,190,230,${0.7 * phase.fade})`;
+      ctx.lineWidth = 2;
+      for (const p of weatherParticles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.y > canvas.height) { p.y = -10; p.x = Math.random() * canvas.width; }
+        if (p.x < 0) p.x = canvas.width;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + p.vx * 3, p.y + p.vy * 3);
+        ctx.stroke();
+      }
+      // Ripples on water tiles
+      if (Math.sin(time * 3) > 0.5) {
+        ctx.strokeStyle = `rgba(150,180,220,${0.3 * phase.fade})`;
+        for (let y = 0; y < world.size.h; y++) for (let x = 0; x < world.size.w; x++) {
+          if (world.terrain[y]?.[x] === 'water' && Math.random() < 0.03) {
+            ctx.beginPath();
+            ctx.arc(x * TILE + TILE/2, y * TILE + TILE/2, 4 + Math.random() * 6, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        }
+      }
+    } else if (phase.ambient === 'snow') {
+      if (weatherParticles.length !== phase.ambientCount) initWeatherParticles('snow', phase.ambientCount);
+      ctx.fillStyle = `rgba(255,255,255,${0.7 * phase.fade})`;
+      for (const p of weatherParticles) {
+        p.x += p.vx + Math.sin(time + p.phase) * 0.5;
+        p.y += p.vy;
+        if (p.y > canvas.height) { p.y = -5; p.x = Math.random() * canvas.width; }
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+      }
+    } else if (phase.ambient === 'firefly') {
+      // Fireflies — drifting, flickering dots with glow
+      for (let i = 0; i < phase.ambientCount; i++) {
+        const fx = (Math.sin(time * 0.3 + i * 2.1) * 0.5 + 0.5) * canvas.width;
+        const fy = (Math.cos(time * 0.2 + i * 1.7) * 0.5 + 0.5) * canvas.height;
+        const flicker = Math.sin(time * 2 + i * 3.3) * 0.5 + 0.5;
+        const alpha = (0.3 + flicker * 0.5) * phase.fade;
+        ctx.fillStyle = ac.replace(/[\d.]+\)$/, `${alpha})`);
+        ctx.fillRect(fx, fy, 3, 3);
+        // glow halo
+        if (flicker > 0.5) {
+          ctx.fillStyle = ac.replace(/[\d.]+\)$/, `${alpha * 0.25})`);
+          ctx.fillRect(fx - 2, fy - 2, 7, 7);
+        }
+      }
+    } else if (phase.ambient === 'pollen') {
+      // Sunrise pollen — slow rising specks
+      for (let i = 0; i < phase.ambientCount; i++) {
+        const fx = ((i / phase.ambientCount) + Math.sin(time * 0.2 + i) * 0.1) * canvas.width;
+        const fy = ((time * 8 + i * 50) % canvas.height);
+        const alpha = (0.2 + Math.sin(time + i) * 0.15) * phase.fade;
+        ctx.fillStyle = ac.replace(/[\d.]+\)$/, `${alpha})`);
+        ctx.fillRect(fx, canvas.height - fy, 2, 2);
+      }
+    } else if (phase.ambient === 'sparkle') {
+      // Noon — subtle light sparkles
+      for (let i = 0; i < phase.ambientCount; i++) {
+        const fx = (Math.sin(time * 0.5 + i * 3.7) * 0.5 + 0.5) * canvas.width;
+        const fy = (Math.cos(time * 0.3 + i * 2.3) * 0.5 + 0.5) * canvas.height;
+        const flicker = Math.sin(time * 3 + i * 5) * 0.5 + 0.5;
+        if (flicker > 0.8) {
+          ctx.fillStyle = ac.replace(/[\d.]+\)$/, `${flicker * 0.3 * phase.fade})`);
+          ctx.fillRect(fx, fy, 1, 1);
+        }
+      }
+    }
+  }
+
+  function updateThoughts() {
+    const canvasRect = canvas.getBoundingClientRect();
+    const scaleX = canvasRect.width / canvas.width;
+    const scaleY = canvasRect.height / canvas.height;
+
+    for (const c of creatures) {
+      if (!c.alive || !c.lastThought) continue;
+      const prev = prevCreatures.get(c.id);
+      const elapsed = performance.now() - animStart;
+      const progress = Math.min(1, elapsed / animDuration);
+      let px, py;
+      if (prev && progress < 1) {
+        px = prev.pos.x + (c.pos.x - prev.pos.x) * progress;
+        py = prev.pos.y + (c.pos.y - prev.pos.y) * progress;
+      } else {
+        px = c.pos.x; py = c.pos.y;
+      }
+      const screenX = canvasRect.left + (px * TILE + TILE / 2) * scaleX;
+      const screenY = canvasRect.top + (py * TILE - 8) * scaleY;
+
+      let entry = thoughtEls.get(c.id);
+      if (!entry || entry.thought !== c.lastThought) {
+        if (entry) entry.el.remove();
+        const el = document.createElement('div');
+        el.className = 'thought';
+        el.textContent = c.lastThought; // XSS-safe: textContent, not innerHTML
+        overlay.appendChild(el);
+        entry = { el, thought: c.lastThought, born: performance.now() };
+        thoughtEls.set(c.id, entry);
+      }
+      el = entry.el;
+      el.style.left = Math.max(8, Math.min(window.innerWidth - 200, screenX - 100)) + 'px';
+      el.style.top = Math.max(8, screenY - 30) + 'px';
+      const age = performance.now() - entry.born;
+      const lifetime = mode === 'turbo' ? 3000 : 6000;
+      el.style.opacity = age < lifetime ? '0.95' : '0';
+      if (age > lifetime + 1000) { el.remove(); thoughtEls.delete(c.id); }
+    }
+  }
+
+  function animate() {
+    const elapsed = performance.now() - animStart;
+    const progress = Math.min(1, elapsed / animDuration);
+    drawWorld(progress);
+    updateThoughts();
+    requestAnimationFrame(animate);
+  }
+
+  function handleEvent(data) {
+    if (data.type === 'init') {
+      world = data;
+      resizeCanvas();
+      bakeBackground();
+      initStars();
+      statusEl.textContent = 'waiting for first tick...';
+    } else if (data.type === 'tick') {
+      statusEl.style.display = 'none';
+      // Buffer the tick — playback loop consumes at mode-specific rate
+      tickBuffer.push(data);
+      // Metrics update immediately (real-time from server, not buffered)
+      tpTokens.textContent = `${data.metrics.tokensPerSec} tok/s`;
+      tpCalls.textContent = `${data.metrics.totalCalls} calls | ${data.metrics.totalRetries} retries${data.metrics.total429 > 0 ? ' | ' + data.metrics.total429 + ' 429s' : ''}`;
+      // Start playback if not already running
+      if (!playbackTimer) playbackLoop();
+    } else if (data.type === 'end') {
+      statusEl.style.display = 'block';
+      statusEl.textContent = `sim ended at tick ${data.tick}`;
+    }
+  }
+
+  // Apply a tick to the visual state (called by playback loop)
+  function applyTick(data) {
+    prevCreatures = new Map(creatures.map(c => [c.id, { pos: { ...c.pos }, thought: c.lastThought }]));
+    creatures = data.creatures;
+    food = data.food;
+    world.timeOfDay = data.timeOfDay;
+    animStart = performance.now();
+
+    // Update tick info with the currently displayed tick
+    const liveTag = isLive ? ' | LIVE' : ` | +${tickBuffer.length} buffered`;
+    tickInfo.textContent = `tick ${data.tick} | ${data.elapsed.toFixed(0)}ms | ${data.creatures.filter(c => c.alive).length} alive${liveTag}`;
+
+    // Contest banner
+    if (data.contests && data.contests.length > 0) {
+      const c = data.contests[0];
+      const names = c.creatures.map(id => creatures.find(cr => cr.id === id)?.name ?? id).join(' vs ');
+      contestBanner.textContent = `${names} competing for ${c.foodId}`;
+      contestBanner.style.opacity = '1';
+      clearTimeout(contestTimer);
+      contestTimer = setTimeout(() => contestBanner.style.opacity = '0', 3000);
+    }
+  }
+
+  // Playback loop — consumes buffered ticks at mode-specific rate.
+  // Turbo: 800ms/tick (fast-forward through accumulated history).
+  // Observe: 3000ms/tick (slow, readable thoughts).
+  // When buffer empties, we're LIVE — waiting for the next Cerebras tick.
+  function playbackLoop() {
+    if (tickBuffer.length > 0) {
+      isLive = false;
+      liveBadge.textContent = `+${tickBuffer.length} buffered`;
+      liveBadge.classList.add('buffered');
+      const data = tickBuffer.shift();
+      applyTick(data);
+      const interval = mode === 'turbo' ? 800 : 3000;
+      animDuration = mode === 'turbo' ? 700 : 2500;
+      playbackTimer = setTimeout(playbackLoop, interval);
+    } else {
+      // Caught up to live — wait for next SSE tick to restart playback
+      isLive = true;
+      liveBadge.textContent = 'LIVE';
+      liveBadge.classList.remove('buffered');
+      playbackTimer = null;
+    }
+  }
+
+  // SSE connection
+  function connect() {
+    const es = new EventSource('/events');
+    es.onmessage = (e) => {
+      try { handleEvent(JSON.parse(e.data)); } catch (err) { console.error('parse error', err); }
+    };
+    es.onerror = () => {
+      statusEl.style.display = 'block';
+      statusEl.textContent = 'connection lost — reconnecting...';
+      es.close();
+      setTimeout(connect, 2000);
+    };
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+  connect();
+  animate();
+})();
+</script>
+</body>
+</html>
