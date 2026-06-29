@@ -24,8 +24,10 @@
   #mode-toggle { position: absolute; bottom: 16px; right: 20px; padding: 8px 16px; background: rgba(20,30,20,0.85); border: 1px solid #3a5a3a; border-radius: 8px; color: #8aaa8a; font-size: 12px; cursor: pointer; pointer-events: auto; font-family: inherit; }
   #mode-toggle:hover { background: rgba(30,50,30,0.9); }
 
-  .thought { position: absolute; padding: 5px 10px; background: rgba(15,20,15,0.9); border: 1px solid rgba(100,140,100,0.4); border-radius: 12px; font-size: 12px; color: #d8e8d8; white-space: nowrap; transition: opacity 1s; max-width: 200px; text-overflow: ellipsis; overflow: hidden; pointer-events: none; }
+  .thought { position: absolute; padding: 6px 12px; background: rgba(10,18,12,0.95); border: 1px solid rgba(100,160,100,0.5); border-radius: 10px; font-size: 13px; line-height: 1.4; color: #e0f0e0; white-space: normal; transition: opacity 0.8s; max-width: 240px; pointer-events: none; box-shadow: 0 2px 12px rgba(0,0,0,0.4); backdrop-filter: blur(4px); }
+  .thought::after { content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid rgba(100,160,100,0.5); }
   .thought.contest { border-color: rgba(220,100,80,0.6); color: #f0c8c0; }
+  .thought.contest::after { border-top-color: rgba(220,100,80,0.6); }
 
   #contest-banner { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); padding: 12px 24px; background: rgba(60,20,15,0.9); border: 1px solid rgba(220,100,80,0.5); border-radius: 8px; font-size: 15px; color: #f0c8c0; opacity: 0; transition: opacity 0.5s; pointer-events: none; }
   #status { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 16px; color: #5a7a5a; }
@@ -621,12 +623,14 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
   const tempV = new THREE.Vector3();
   function updateThoughts() {
     const progress = Math.min(1, (performance.now() - animStart) / animDuration);
+
+    // Collect visible creatures sorted by recency of thought — show max 8 at once
+    const visible = [];
     for (const c of creatures) {
       if (!c.alive || !c.lastThought) continue;
       const entry = creatureMeshes.get(c.id);
       if (!entry) continue;
 
-      // Lerp position
       const prev = prevCreatures.get(c.id);
       let px, py;
       if (prev && progress < 1) {
@@ -638,28 +642,43 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
       tempV.set(px * TILE, 1.0, py * TILE);
       tempV.project(camera);
+      if (tempV.z > 1) continue;
 
       const screenX = (tempV.x * 0.5 + 0.5) * window.innerWidth;
       const screenY = (-tempV.y * 0.5 + 0.5) * window.innerHeight;
-
-      if (tempV.z > 1) continue; // behind camera
 
       let elEntry = thoughtEls.get(c.id);
       if (!elEntry || elEntry.thought !== c.lastThought) {
         if (elEntry) elEntry.el.remove();
         const el = document.createElement('div');
         el.className = 'thought';
-        el.textContent = c.lastThought;
+        // Name in bold + thought text — textContent for XSS safety
+        el.textContent = `${c.name}: ${c.lastThought}`;
         overlay.appendChild(el);
-        elEntry = { el, thought: c.lastThought, born: performance.now() };
+        elEntry = { el, thought: c.lastThought, born: performance.now(), name: c.name };
         thoughtEls.set(c.id, elEntry);
       }
-      elEntry.el.style.left = Math.max(8, Math.min(window.innerWidth - 200, screenX - 100)) + 'px';
-      elEntry.el.style.top = Math.max(8, screenY - 30) + 'px';
+
+      // Center the bubble above the creature
+      const bubbleW = elEntry.el.offsetWidth || 200;
+      const left = Math.max(8, Math.min(window.innerWidth - bubbleW - 8, screenX - bubbleW / 2));
+      elEntry.el.style.left = left + 'px';
+      elEntry.el.style.top = Math.max(8, screenY - 55) + 'px';
+
       const age = performance.now() - elEntry.born;
-      const lifetime = mode === 'turbo' ? 3000 : 6000;
+      const lifetime = mode === 'turbo' ? 3000 : 7000;
       elEntry.el.style.opacity = age < lifetime ? '0.95' : '0';
       if (age > lifetime + 1000) { elEntry.el.remove(); thoughtEls.delete(c.id); }
+
+      visible.push({ id: c.id, age: performance.now() - elEntry.born, elEntry });
+    }
+
+    // If too many thoughts visible, hide the oldest ones
+    if (visible.length > 8) {
+      visible.sort((a, b) => b.age - a.age); // oldest first
+      for (let i = 8; i < visible.length; i++) {
+        visible[i].elEntry.el.style.opacity = '0';
+      }
     }
   }
 
