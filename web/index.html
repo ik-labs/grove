@@ -42,9 +42,9 @@
   .legend-bar { display: inline-flex; gap: 1px; flex-shrink: 0; }
   .legend-bar span { display: inline-block; width: 8px; height: 8px; }
 
-  #intro-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,10,5,0.92); display: flex; align-items: center; justify-content: center; z-index: 100; transition: opacity 0.8s; }
+  #intro-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,10,5,0.92); display: flex; align-items: center; justify-content: center; z-index: 100; transition: opacity 0.8s; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 20px; }
   #intro-overlay.hidden { opacity: 0; pointer-events: none; }
-  #intro-card { max-width: 540px; padding: 36px 40px; background: linear-gradient(135deg, rgba(20,35,20,0.98), rgba(15,25,15,0.98)); border: 1px solid rgba(80,140,80,0.3); border-radius: 16px; box-shadow: 0 0 60px rgba(60,120,60,0.15); text-align: center; }
+  #intro-card { width: min(540px, calc(100vw - 40px)); min-width: 0; margin: auto; padding: 36px 40px; background: linear-gradient(135deg, rgba(20,35,20,0.98), rgba(15,25,15,0.98)); border: 1px solid rgba(80,140,80,0.3); border-radius: 16px; box-shadow: 0 0 60px rgba(60,120,60,0.15); text-align: center; overflow-wrap: break-word; }
   #intro-title { font-size: 42px; font-weight: 800; color: #a8d8a8; letter-spacing: 2px; margin-bottom: 4px; }
   #intro-subtitle { font-size: 13px; color: #6a8a6a; margin-bottom: 20px; letter-spacing: 0.5px; }
   #intro-body { text-align: left; font-size: 14px; line-height: 1.6; color: #b0c8b0; margin-bottom: 20px; }
@@ -63,6 +63,36 @@
   #live-badge.buffered { background: rgba(200,160,80,0.2); border-color: rgba(200,160,80,0.5); color: #e0c050; }
 
   #camera-hint { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #4a6a4a; pointer-events: none; }
+
+  @media (max-width: 600px) {
+    /* Intro card: fit + scroll on small screens */
+    #intro-card { padding: 24px 20px; border-radius: 12px; }
+    #intro-title { font-size: 30px; }
+    #intro-subtitle { font-size: 11px; margin-bottom: 14px; }
+    #intro-body { font-size: 13px; margin-bottom: 14px; }
+    #intro-body p { margin-bottom: 8px; }
+    #intro-stats { flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    #intro-stats .stat { flex: 1 1 calc(50% - 4px); }
+    #intro-legend { font-size: 11px; margin-bottom: 18px; padding: 12px; }
+    #intro-start { width: 100%; padding: 14px; font-size: 16px; }
+
+    /* HUD: shrink + reposition so nothing collides on a narrow viewport */
+    #title { font-size: 11px; top: 10px; left: 12px; max-width: 48%; }
+    #title .name { font-size: 16px; }
+    #throughput { top: 10px; right: 12px; padding: 6px 10px; }
+    #throughput .label { font-size: 8px; }
+    #throughput .value { font-size: 14px; }
+    #throughput .sub { font-size: 9px; }
+    #live-badge { font-size: 9px; margin-top: 4px; }
+    #camera-hint { display: none; }
+    #tick-info { font-size: 10px; left: 12px; bottom: 12px; }
+    #phase-label { font-size: 10px; left: 12px; bottom: 28px; letter-spacing: 1px; }
+    #mode-toggle { right: 12px; bottom: 12px; padding: 6px 10px; font-size: 10px; }
+    #legend-toggle { right: 162px; bottom: 12px; padding: 6px 10px; font-size: 12px; }
+    #legend-panel { right: 12px; bottom: 48px; font-size: 11px; padding: 10px 12px; max-width: 72vw; }
+    #status { font-size: 13px; width: 80%; text-align: center; }
+    .thought { max-width: 160px; font-size: 11px; padding: 4px 8px; }
+  }
 </style>
 <script type="importmap">
 {
@@ -146,7 +176,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
   const liveBadge = document.getElementById('live-badge');
   const phaseLabelEl = document.getElementById('phase-label');
 
-  introStart.addEventListener('click', () => introOverlay.classList.add('hidden'));
+  introStart.addEventListener('click', () => {
+    introOverlay.classList.add('hidden');
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'waking the world...';
+    fetch('/start', { method: 'POST' }).catch(() => {});
+  });
   legendToggle.addEventListener('click', () => {
     legendPanel.style.display = legendPanel.style.display === 'none' ? 'block' : 'none';
   });

@@ -14,7 +14,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const MAX_TICKS = Number(process.env.GROVE_MAX_TICKS ?? 999);
 const TICK_DELAY_MS = Number(process.env.GROVE_TICK_DELAY ?? 500);
 
-const world = initWorld();
+let world = initWorld();
 const clients = new Set<ReadableStreamDefaultController>();
 let tickRunning = false;
 
@@ -57,6 +57,20 @@ function broadcast(data: object) {
   for (const c of clients) {
     try { c.enqueue(msg); } catch { clients.delete(c); }
   }
+}
+
+// Start the world on demand (triggered by the "enter the world" button).
+// Guarded so concurrent viewers can't double-start. If a previous run already
+// advanced, spin up a fresh world and re-broadcast init so terrain resets.
+function startTickLoop(): boolean {
+  if (tickRunning) return false;
+  if (world.tick > 0) {
+    world = initWorld();
+    broadcast(serializeInit());
+  }
+  tickRunning = true;
+  tickLoop().finally(() => { tickRunning = false; });
+  return true;
 }
 
 async function tickLoop() {
@@ -135,11 +149,14 @@ const server = Bun.serve({
     const url = new URL(req.url);
     if (url.pathname === "/events") return sseResponse();
     if (url.pathname === "/health") return new Response("ok");
+    if (url.pathname === "/start" && req.method === "POST") {
+      const started = startTickLoop();
+      return Response.json({ started, running: tickRunning, tick: world.tick });
+    }
     return safeServeFile(url.pathname);
   },
 });
 
 console.log(`Grove server: http://localhost:${PORT}`);
 console.log(`SSE: http://localhost:${PORT}/events`);
-console.log(`Starting tick loop (${MAX_TICKS === 999 ? "unlimited" : MAX_TICKS + " ticks"})...`);
-tickLoop();
+console.log(`Idle — waiting for /start (${MAX_TICKS === 999 ? "unlimited" : MAX_TICKS + " ticks"} when triggered)...`);
